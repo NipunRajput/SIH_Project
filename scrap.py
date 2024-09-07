@@ -111,6 +111,75 @@
 
 
 
+# from playwright.sync_api import sync_playwright
+# import json
+# import os
+
+
+# def scrape_profile(url: str) -> dict:
+#     """
+#     Scrape an X.com profile details, fetch the post (tweet), and capture a screenshot.
+#     """
+#     _xhr_calls = []
+#     screenshot_dir = "tweet_screenshots"
+
+#     # Create directory for screenshots if it doesn't exist
+#     if not os.path.exists(screenshot_dir):
+#         os.makedirs(screenshot_dir)
+
+#     def intercept_response(response):
+#         """Capture all background requests (XHR) and save them"""
+#         if response.request.resource_type == "xhr":
+#             _xhr_calls.append(response)
+
+#     with sync_playwright() as pw:
+#         browser = pw.chromium.launch(headless=False)  # Launch browser in non-headless mode
+#         context = browser.new_context(viewport={"width": 1920, "height": 1080})
+#         page = context.new_page()
+
+#         # Enable background request intercepting:
+#         page.on("response", intercept_response)
+        
+#         # Go to the tweet URL
+#         page.goto(url)
+#         page.wait_for_selector("[data-testid='primaryColumn']")  # Wait for tweet to load
+
+#         # Wait for the tweet to appear on the page
+#         page.wait_for_timeout(3000)
+
+#         # Extract the first tweet and capture a screenshot
+#         tweet_element = page.query_selector(f'[data-testid="tweet"]')
+#         if tweet_element:
+#             tweet_text = tweet_element.text_content()
+#             tweet_id = url.split('/')[-1]  # Get tweet ID from URL
+
+#             # Take screenshot of the tweet
+#             screenshot_path = os.path.join(screenshot_dir, f"tweet_{tweet_id}.png")
+#             tweet_element.screenshot(path=screenshot_path)
+#             print(f"Screenshot saved: {screenshot_path}")
+
+#             # Return tweet details
+#             return {
+#                 "id": tweet_id,
+#                 "text": tweet_text.strip(),
+#                 "screenshot": screenshot_path
+#             }
+#         else:
+#             print("Tweet not found on the page.")
+#             return {}
+
+
+# if __name__ == "__main__":
+#     # Scrape the tweet and capture screenshot
+#     tweet_url = "https://x.com/NASA/status/1832286681430384688"
+#     tweet_data = scrape_profile(tweet_url)
+    
+#     # Print the tweet content and screenshot path
+#     print(json.dumps(tweet_data, indent=2))
+
+
+
+
 from playwright.sync_api import sync_playwright
 import json
 import os
@@ -119,13 +188,19 @@ import os
 def scrape_profile(url: str) -> dict:
     """
     Scrape an X.com profile details, fetch the post (tweet), and capture a screenshot.
+    Save the tweet text into a .txt file.
+    If no tweets are found, take a screenshot and save all visible text from the page.
     """
     _xhr_calls = []
     screenshot_dir = "tweet_screenshots"
+    text_dir = "tweet_texts"
 
-    # Create directory for screenshots if it doesn't exist
+    # Create directories for screenshots and text files if they don't exist
     if not os.path.exists(screenshot_dir):
         os.makedirs(screenshot_dir)
+
+    if not os.path.exists(text_dir):
+        os.makedirs(text_dir)
 
     def intercept_response(response):
         """Capture all background requests (XHR) and save them"""
@@ -147,32 +222,58 @@ def scrape_profile(url: str) -> dict:
         # Wait for the tweet to appear on the page
         page.wait_for_timeout(3000)
 
-        # Extract the first tweet and capture a screenshot
+        # Try to extract the first tweet and capture a screenshot
         tweet_element = page.query_selector(f'[data-testid="tweet"]')
+        tweet_id = url.split('/')[-1]  # Get tweet ID from URL
+
         if tweet_element:
+            # Extract tweet text
             tweet_text = tweet_element.text_content()
-            tweet_id = url.split('/')[-1]  # Get tweet ID from URL
 
             # Take screenshot of the tweet
             screenshot_path = os.path.join(screenshot_dir, f"tweet_{tweet_id}.png")
             tweet_element.screenshot(path=screenshot_path)
             print(f"Screenshot saved: {screenshot_path}")
 
-            # Return tweet details
+            # Save tweet text into a .txt file
+            text_file_path = os.path.join(text_dir, f"tweet_{tweet_id}.txt")
+            with open(text_file_path, "w", encoding="utf-8") as text_file:
+                text_file.write(tweet_text.strip())
+            print(f"Tweet text saved: {text_file_path}")
+
             return {
                 "id": tweet_id,
                 "text": tweet_text.strip(),
-                "screenshot": screenshot_path
+                "screenshot": screenshot_path,
+                "text_file": text_file_path
             }
         else:
-            print("Tweet not found on the page.")
-            return {}
+            # If no tweets are found, capture a screenshot of the page and save the visible text
+            screenshot_path = os.path.join(screenshot_dir, f"page_{tweet_id}.png")
+            page.screenshot(path=screenshot_path)
+            print(f"No tweets found. Screenshot saved: {screenshot_path}")
+
+            # Extract all visible text from the page
+            page_text = page.text_content().strip()
+
+            # Save the extracted page text into a .txt file
+            text_file_path = os.path.join(text_dir, f"page_{tweet_id}.txt")
+            with open(text_file_path, "w", encoding="utf-8") as text_file:
+                text_file.write(page_text)
+            print(f"Page text saved: {text_file_path}")
+
+            return {
+                "id": tweet_id,
+                "text": page_text,
+                "screenshot": screenshot_path,
+                "text_file": text_file_path
+            }
 
 
 if __name__ == "__main__":
-    # Scrape the tweet and capture screenshot
-    tweet_url = "https://www.instagram.com/reel/C_GOuAxvXjv/?igsh=bHhqc2IybnVkc3kw"
+    # Scrape the tweet, capture screenshot, and save tweet/page text
+    tweet_url = "https://x.com/Nihar_Ranjan_08/following"
     tweet_data = scrape_profile(tweet_url)
     
-    # Print the tweet content and screenshot path
+    # Print the tweet or page content and screenshot path
     print(json.dumps(tweet_data, indent=2))
